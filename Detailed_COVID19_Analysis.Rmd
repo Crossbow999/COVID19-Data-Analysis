@@ -10,7 +10,7 @@ output:
 
 ## Introduction
 
-This report presents a detailed analysis of global COVID-19 confirmed cases, focusing on the trends and patterns in the spread of the virus across different countries and over time. The dataset includes daily cumulative confirmed cases for each country, which allows us to track the progression of the pandemic. We aim to visualize the data to better understand the distribution and trajectory of COVID-19 and to predict future trends using statistical modeling. Understanding these patterns is vital for public health planning and response.
+This report presents a detailed analysis of global COVID-19 confirmed cases, focusing on the trends and patterns in the spread of the virus across different countries and over time. The dataset was taken from the COVID-19 Data Repository by the Center for Systems Science and Engineering (CSSE) at Johns Hopkins University, and includes daily cumulative confirmed cases for each country, which allows us to track the progression of the pandemic. We aim to visualize the data to better understand the distribution and trajectory of COVID-19 and to predict future trends using statistical modeling. Understanding these patterns is vital for public health planning and response.
 
 ## Load and Inspect Data
 
