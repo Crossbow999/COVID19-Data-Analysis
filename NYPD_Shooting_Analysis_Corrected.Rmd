@@ -1,0 +1,121 @@
+
+---
+title: "NYPD Shooting Incident Data Analysis"
+author: "Sid"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+```
+
+## Introduction
+
+This report analyzes the NYPD Shooting Incident data. The goal is to explore trends in shooting incidents, including temporal trends, geographical distribution, and perpetrator/victim demographics. We will identify potential biases in the data and their implications on the analysis.
+
+## Data Loading and Preprocessing
+
+```{r load-data}
+# Load the data
+
+urlin <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+data <- read.csv(urlin)
+
+# Display the first few rows of the dataset
+head(data)
+```
+
+## Data Cleaning
+
+```{r clean-data}
+# Convert dates and categorize necessary fields
+data$OCCUR_DATE <- as.Date(data$OCCUR_DATE, format="%m/%d/%Y")
+data$BORO <- as.factor(data$BORO)
+data$PERP_AGE_GROUP <- as.factor(data$PERP_AGE_GROUP)
+data$PERP_SEX <- as.factor(data$PERP_SEX)
+data$PERP_RACE <- as.factor(data$PERP_RACE)
+data$VIC_AGE_GROUP <- as.factor(data$VIC_AGE_GROUP)
+data$VIC_SEX <- as.factor(data$VIC_SEX)
+data$VIC_RACE <- as.factor(data$VIC_RACE)
+
+# Handle missing data: imputation or removal
+data <- na.omit(data)  # Removing rows with any NA values for simplicity
+
+# Drop unnecessary columns
+data <- select(data, -c(LOC_OF_OCCUR_DESC, LOC_CLASSFCTN_DESC, LOCATION_DESC, Lon_Lat))
+
+# Summary of cleaned data
+summary(data)
+```
+
+## Data Analysis and Visualization
+
+### Distribution of Incidents by Borough
+
+```{r incidents-by-borough}
+ggplot(data, aes(x=BORO)) +
+  geom_bar() +
+  labs(title="Number of Shooting Incidents by Borough", x="Borough", y="Count")
+```
+
+### Trend Over Time
+
+```{r trend-over-time}
+data$Year <- year(data$OCCUR_DATE)
+ggplot(data, aes(x=Year)) +
+  geom_line(stat="count") +
+  labs(title="Shooting Incidents Over Time", x="Year", y="Number of Incidents")
+```
+
+## Statistical Analysis
+
+### Simple Model: Linear Trend of Incidents Over Time
+
+```{r linear-model}
+# Summarize incidents by year
+annual_data <- data %>%
+  group_by(Year) %>%
+  summarise(Incidents = n(), .groups = 'drop')
+
+# Fit linear model to incidents over time
+model <- lm(Incidents ~ Year, data = annual_data)
+
+# Summary of the model
+summary(model)
+
+# Create a dataframe for predictions
+prediction_data <- data.frame(Year = min(annual_data$Year):max(annual_data$Year))
+prediction_data$Predicted_Incidents <- predict(model, newdata = prediction_data)
+
+# Plot actual data and model predictions
+## Plot actual data and model predictions
+ggplot(annual_data, aes(x = Year, y = Incidents)) +
+  geom_line(color = "blue", linewidth = 1) +
+  geom_line(data = prediction_data, aes(x = Year, y = Predicted_Incidents), color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = "Shooting Incidents Over Time with Linear Model Prediction",
+       x = "Year",
+       y = "Number of Incidents") +
+  theme_minimal() +
+  geom_point() +
+  geom_point(data = prediction_data, aes(x = Year, y = Predicted_Incidents), color = "red") +
+  scale_x_continuous(breaks = seq(min(annual_data$Year), max(annual_data$Year), by = 1))  # Adjust x-axis breaks if necessary
+
+## Check model diagnostics with a residual plot
+ggplot(model, aes(.fitted, .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(title = "Residuals vs Fitted Values",
+       x = "Fitted Values",
+       y = "Residuals")
+
+```
+
+## Conclusion
+
+This report provided an overview of shooting incidents in NYC, explored the trends over time, and performed a basic modeling to understand the trajectory of incidents. Potential biases include underreporting and the limitations of demographic categorization.
