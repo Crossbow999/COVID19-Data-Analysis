@@ -1,0 +1,159 @@
+
+---
+title: "Detailed COVID-19 Analysis"
+author: "Siddharth Chundru"
+date: "05/08/2024"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## Introduction
+
+This report presents a detailed analysis of global COVID-19 confirmed cases, focusing on the trends and patterns in the spread of the virus across different countries and over time. The dataset includes daily cumulative confirmed cases for each country, which allows us to track the progression of the pandemic. We aim to visualize the data to better understand the distribution and trajectory of COVID-19 and to predict future trends using statistical modeling. Understanding these patterns is vital for public health planning and response.
+
+## Load and Inspect Data
+
+```{r load-data, message=FALSE}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr) 
+library(scales)
+
+# Load the dataset
+urlin <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/"
+files <- c("time_series_covid19_confirmed_US.csv",  "time_series_covid19_confirmed_global.csv", "time_series_covid19_deaths_US.csv",  "time_series_covid19_deaths_global.csv")
+urls <-  str_c(urlin, files)
+
+confirmed_US <- read.csv(urls[1])
+confirmed_global <- read.csv(urls[2])
+deaths_US <- read.csv(urls[3])
+deaths_global <- read.csv(urls[4])
+
+# Initial data structure
+str(confirmed_global)
+```
+
+## Data Tidying and Transformation
+
+```{r tidy-data}
+# Fill NA values in 'Province/State' with 'Unknown'
+confirmed_global <- confirmed_global %>%
+  mutate(`Province.State` = ifelse(is.na(`Province.State`), "Unknown", `Province.State`))
+
+# Convert data from wide to long format
+covid_long <- confirmed_global %>%
+  pivot_longer(cols = -c(`Province.State`, `Country.Region`, Lat, Long),
+               names_to = "Date",
+               values_to = "Cases") %>%
+  mutate(Date = gsub("X", "", Date))
+
+# Convert Date from character to Date type
+covid_long$Date <- mdy(covid_long$Date)
+
+# Aggregate cases by Country and Date
+covid_clean <- covid_long %>%
+  group_by(`Country.Region`, Date) %>%
+  summarize(Total_Cases = sum(Cases, na.rm = TRUE), .groups = 'drop')
+
+# View clean data structure
+str(covid_clean)
+```
+
+## Data Summary
+
+```{r data-summary}
+summary(covid_clean)
+```
+
+## Visualizations
+
+### Visualization 1: Global COVID-19 Cases Over Time
+
+```{r global-cases-plot}
+global_cases <- covid_clean %>%
+  group_by(Date) %>%
+  summarize(Global_Cases = sum(Total_Cases))
+
+ggplot(global_cases, aes(x = Date, y = Global_Cases)) +
+  geom_line(color = "blue") +
+  labs(title = "Global COVID-19 Cases Over Time", x = "Date", y = "Total Cases") +
+  scale_y_continuous(labels = scales::comma)
+```
+
+### Visualization 2: Comparison of Total Cases by Country
+
+```{r cases-by-country}
+top_countries <- covid_clean %>%
+  group_by(`Country.Region`) %>%
+  summarize(Total_Cases = max(Total_Cases)) %>%
+  arrange(desc(Total_Cases)) %>%
+  slice(1:5)
+
+ggplot(top_countries, aes(x = reorder(`Country.Region`, Total_Cases), y = Total_Cases, fill = `Country.Region`)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Top 5 Countries by Total COVID-19 Cases", x = "Country", y = "Total Cases") +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal()
+```
+
+## Predictive Analysis
+
+```{r predictive-model}
+
+# Convert Date to a numeric format (days since the start)
+global_cases$Date_Num <- as.numeric(global_cases$Date - min(global_cases$Date))
+
+# Fitting a linear model using the numeric date
+model <- lm(Global_Cases ~ Date_Num, data = global_cases)
+summary(model)
+
+# Create future dates for prediction
+max_date_num <- max(global_cases$Date_Num)
+future_dates <- data.frame(Date_Num = seq(from = max_date_num + 1, by = 1, length.out = 30))
+
+# Generate future date values in Date format for plotting
+future_dates$Date <- min(global_cases$Date) + future_dates$Date_Num
+
+# Predict future cases
+future_cases <- predict(model, newdata = future_dates)
+
+# Prepare predicted data for plotting
+predicted_data <- data.frame(Date = future_dates$Date, Global_Cases = future_cases)
+predicted_data$Case_Type <- "Predicted"  # Add 'Case_Type' directly as a new column
+
+# Update `global_cases` to include a column for case type and prepare for plotting
+global_cases_plot <- global_cases %>%
+  select(Date, Global_Cases) %>%  # Ensure only needed columns are selected
+  mutate(Case_Type = "Actual")
+
+# Combining actual and predicted data for visualization
+if (all(names(global_cases_plot) == names(predicted_data))) {
+  full_data <- rbind(global_cases_plot, predicted_data)
+  print("Data combined successfully.")
+} else {
+  print("Data structure mismatch. Cannot combine data. Check column names and types.")
+}
+
+# Plot actual and predicted cases
+ggplot(full_data, aes(x = Date, y = Global_Cases, color = Case_Type)) +
+  geom_line() +
+  labs(title = "Global COVID-19 Cases: Actual vs. Predicted",
+       x = "Date",
+       y = "Global Cases",
+       color = "Case Type") +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal()
+```
+
+## Discussion of Biases
+
+The analysis presented is based on reported data, which might not accurately reflect the true number of cases due to differences in testing rates, reporting standards, and health infrastructure across countries. Furthermore, the impact of political and social factors on reporting accuracy cannot be overlooked.
+
+## Conclusion
+
+This report has explored the trajectory of the COVID-19 pandemic using visual and predictive analyses. The insights gained underscore the complex dynamics of the pandemic's spread, which varies significantly by country. While the linear model provides a basic forecast, it is important to approach these predictions with caution due to the potential biases and limitations inherent in the dataset. Future analyses should consider these factors and possibly incorporate more sophisticated models to accommodate the non-linear nature of epidemic spread.
+
